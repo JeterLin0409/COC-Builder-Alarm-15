@@ -141,7 +141,7 @@ public final class MainActivity extends Activity {
         main.addView(title);
         TextView subtitle=small("截圖 → 自動讀時間 → 5 小時內提醒");
         main.addView(subtitle);
-        main.addView(small("版本 v1.5 · 確認看到這行才是新版 APK"));
+        main.addView(small("版本 v1.6 · 確認看到這行才是新版 APK"));
         Button diagnostics=button("複製診斷資訊（閃退時使用）",false);
         diagnostics.setOnClickListener(v->{CrashReporter.copyDiagnostics(this);msg("已複製本機診斷資訊");});
         main.addView(diagnostics);
@@ -317,7 +317,7 @@ public final class MainActivity extends Activity {
                         startOcr(decoded);
                     } catch(Throwable error) {
                         readingImage=false;
-                        CrashReporter.setStage(this,"圖片顯示或 OCR 初始化失敗："+safeError(error));
+                        CrashReporter.recordHandled(this,"圖片顯示或 OCR 初始化失敗",error);
                         CrashReporter.endScreenshot(this);
                         status.setText("截圖處理失敗："+safeError(error)+"。可手動輸入倒數。");
                     }
@@ -325,7 +325,7 @@ public final class MainActivity extends Activity {
             } catch(Throwable e) {
                 runOnUiThread(()->{
                     readingImage=false;
-                    CrashReporter.setStage(this,"讀取圖片失敗："+safeError(e));
+                    CrashReporter.recordHandled(this,"讀取圖片失敗",e);
                     CrashReporter.endScreenshot(this);
                     status.setText("截圖讀取失敗："+safeError(e)+"。請使用較小的截圖，或手動輸入倒數。");
                 });
@@ -346,7 +346,7 @@ public final class MainActivity extends Activity {
             recognizer=TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
         } catch(Throwable e) {
             readingImage=false;
-            CrashReporter.setStage(this,"文字辨識無法啟動："+safeError(e));
+            CrashReporter.recordHandled(this,"文字辨識無法啟動",e);
             CrashReporter.endScreenshot(this);
             status.setText("文字辨識無法啟動："+safeError(e)+"。可改用下方欄位手動輸入。");
             return;
@@ -379,6 +379,7 @@ public final class MainActivity extends Activity {
                 after.run();
             });
         } catch(Throwable e) {
+            CrashReporter.recordHandled(this,"辨識"+label,e);
             errors.add(label+"："+safeError(e));
             if(crop!=null && crop!=bmp && !crop.isRecycled())crop.recycle();
             if(scaled!=null && scaled!=bmp && !scaled.isRecycled())scaled.recycle();
@@ -393,17 +394,19 @@ public final class MainActivity extends Activity {
             recognizer.process(input)
                 .addOnSuccessListener(result->{
                     try {appendLines(result,lines,left,top,scale);}
-                    catch(Throwable e){errors.add("文字擷取："+safeError(e));}
+                    catch(Throwable e){CrashReporter.recordHandled(this,"文字擷取",e);errors.add("文字擷取："+safeError(e));}
                 })
-                .addOnFailureListener(e->errors.add("文字辨識："+safeError(e)))
+                .addOnFailureListener(e->{CrashReporter.recordHandled(this,"文字辨識",e);errors.add("文字辨識："+safeError(e));})
                 .addOnCompleteListener(task->{
                     try {after.run();}
                     catch(Throwable e){
+                        CrashReporter.recordHandled(this,"後續處理",e);
                         errors.add("後續處理："+safeError(e));
                         finishOcr(recognizer,lines,errors);
                     }
                 });
         } catch(Throwable e) {
+            CrashReporter.recordHandled(this,"文字辨識啟動",e);
             errors.add("文字辨識啟動："+safeError(e));
             after.run();
         }
@@ -417,15 +420,22 @@ public final class MainActivity extends Activity {
         CrashReporter.endScreenshot(this);
         try {
             populateRecognized(lines,!errors.isEmpty());
+            CrashReporter.setStage(this, errors.isEmpty() ? "辨識已完成，等待使用者操作" : "部分辨識失敗，請核對時間");
             if(!errors.isEmpty())status.append("\n部分辨識失敗："+errors.get(0)+"；請確認每筆倒數。");
         } catch(Throwable e) {
-            CrashReporter.setStage(this,"辨識結果顯示失敗："+safeError(e));
+            CrashReporter.recordHandled(this,"辨識結果顯示失敗",e);
+            timerRows.clear();timerContainer.removeAllViews();
+            addTimerRow("藥水時間（辨識失敗，請手動確認）","",1);
+            addTimerRow("建築時間","",2);
+            invalidateResults();
             status.setText("圖片已載入，但解析辨識結果時發生錯誤："+safeError(e)+"。可改成手動輸入倒數。");
         }
-        if(errors.isEmpty())CrashReporter.setStage(this,"辨識已完成，等待使用者操作");
     }
 
     private static String safeError(Throwable e) {
+        Throwable cause=e;
+        for(int depth=0;depth<10 && cause.getCause()!=null && cause.getCause()!=cause;depth++)cause=cause.getCause();
+        e=cause;
         String message=e.getMessage();
         String result=e.getClass().getSimpleName()+(message==null?"":"："+message);
         return result.length()>180?result.substring(0,180):result;

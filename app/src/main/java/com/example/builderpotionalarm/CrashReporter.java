@@ -11,7 +11,7 @@ import android.util.Log;
 
 /** Local diagnostics: no screenshot, account data or logs are transmitted. */
 final class CrashReporter {
-    static final String VERSION = "1.5";
+    static final String VERSION = "1.6";
     private static final String PREF = "local_crash_report";
     private CrashReporter() {}
 
@@ -26,11 +26,21 @@ final class CrashReporter {
     /** Persist synchronously; survives process death during native OCR operations. */
     static void beginScreenshot(Context ctx) {
         prefs(ctx).edit().putString("stage", "開始載入截圖")
-                .putBoolean("processing", true).commit();
+                .putBoolean("processing", true).remove("handled").commit();
     }
 
     static void endScreenshot(Context ctx) {
         prefs(ctx).edit().putBoolean("processing", false).apply();
+    }
+
+    /** Keep caught errors too: they never reach the uncaught exception handler. */
+    static void recordHandled(Context ctx, String stage, Throwable error) {
+        try {
+            String report = "COC v" + VERSION + "\nStage: " + stage + "\n\n"
+                    + Log.getStackTraceString(error);
+            prefs(ctx).edit().putString("stage", stage)
+                    .putString("handled", report).commit();
+        } catch (Throwable ignored) { }
     }
 
     static void install(Context context) {
@@ -63,9 +73,11 @@ final class CrashReporter {
                 "\nAndroid: "+Build.VERSION.RELEASE+
                 "\nLast stage: "+sp.getString("stage", "unknown")+
                 "\nProcessing interrupted: "+sp.getBoolean("processing", false);
+        String handled=sp.getString("handled",null);
+        if(handled!=null) text+="\n\nLast caught error:\n"+handled;
         String crash=sp.getString("crash",null);
         if(crash!=null) text+="\n\nLast Java crash:\n"+crash;
-        else text+="\n\nNo captured Java exception. If it closed during OCR, this may be a native crash or the previous app version.";
+        else if(handled==null) text+="\n\nNo recorded exception. This alone does not identify the cause of a failure.";
         return text;
     }
 
