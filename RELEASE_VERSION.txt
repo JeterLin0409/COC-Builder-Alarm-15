@@ -1,2 +1,2 @@
-COC Builder Alarm: source version 1.5
-versionCode: 6
+COC Builder Alarm: source version 1.6
+versionCode: 7

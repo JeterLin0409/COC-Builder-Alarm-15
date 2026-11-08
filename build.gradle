@@ -1,3 +1,24 @@
 plugins {
-    id 'com.android.application' version '8.6.1' apply false
+    id 'com.android.application'
+}
+android {
+    namespace 'com.example.builderpotionalarm'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'com.example.builderpotionalarm'
+        minSdk 26
+        targetSdk 35
+        versionCode 7
+        versionName '1.6'
+        testInstrumentationRunner 'android.test.InstrumentationTestRunner'
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+dependencies {
+    // Bundled Latin OCR model. The game screenshot uses English names/numeric times.
+    implementation 'com.google.mlkit:text-recognition:16.0.1'
+    testImplementation 'junit:junit:4.13.2'
 }
