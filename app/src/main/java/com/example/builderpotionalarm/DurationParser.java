@@ -11,8 +11,9 @@ public final class DurationParser {
     private DurationParser() {}
 
     // OCR may see "2h 30m", "1天 2小時", "3時15分", "2d4h" or colon clock values.
+    // Do not quantify a word boundary: Android ICU rejects \b? at class initialization.
     private static final Pattern UNITS = Pattern.compile(
-        "(?iu)(\\d{1,3})\\s*(days?|小時|小时|hours?|hrs?|minutes?|mins?|seconds?|secs?|天|日|時|时|分鐘|分钟|分|秒鐘|秒钟|秒|d|h|m|s)\\b?"
+        "(?iu)(\\d{1,3})\\s*(days?|小時|小时|hours?|hrs?|minutes?|mins?|seconds?|secs?|天|日|時|时|分鐘|分钟|分|秒鐘|秒钟|秒|d|h|m|s)"
     );
     private static final Pattern COLON = Pattern.compile("(?<!\\d)(\\d{1,2}):(\\d{2})(?::(\\d{2}))?(?!\\d)");
     private static final Pattern NUMBER = Pattern.compile("\\d+");
